@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Offers Zone – Deal Post Tool</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#e8590c">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+  :root{--bg:#f6f7fb;--card:#fff;--text:#1b1d24;--mut:#6b7280;--line:#e3e6ee;--acc:#e8590c;}
+  @media (prefers-color-scheme:dark){:root{--bg:#14161c;--card:#1d2028;--text:#eceef3;--mut:#9aa1b2;--line:#2c313c;--acc:#ff8a3d;}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;padding:16px}
+  .wrap{max-width:560px;margin:0 auto}
+  h1{font-size:20px;margin:4px 0 14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
+  label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
+  input,textarea{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-size:15px;font-family:inherit}
+  textarea{resize:vertical}
+  button{border:0;border-radius:10px;padding:12px 16px;font-size:15px;font-weight:600;cursor:pointer;background:var(--acc);color:#fff}
+  button.sec{background:var(--line);color:var(--text)}
+  .row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .row button{flex:1}
+  #out{min-height:130px;white-space:pre-wrap}
+  #status{font-size:13px;margin-top:8px;color:var(--mut)}
+  details summary{cursor:pointer;font-size:14px;color:var(--mut)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🛒 Offers Zone – Deal Post Tool</h1>
+
+  <div class="card">
+    <label for="share">Share text paste (title + link thaana pirinjidum)</label>
+    <textarea id="share" rows="4" placeholder="Take a look at this ... on Flipkart&#10;https://www.shopsy.in/..."></textarea>
+
+    <label for="title">Product text</label>
+    <textarea id="title" rows="2" placeholder="futurist world Ice Cream Mould Blue, Yellow Plastic Ice Cube Tray (Pack of 6)"></textarea>
+
+    <label for="link">Full link</label>
+    <textarea id="link" rows="3" placeholder="https://www.shopsy.in/..."></textarea>
+
+    <label for="price">Price (₹)</label>
+    <input id="price" inputmode="numeric" placeholder="73">
+
+    <label style="display:flex;align-items:center;gap:8px;margin-top:14px;color:var(--text);font-size:15px">
+      <input type="checkbox" id="useTag" style="width:20px;height:20px"> Affiliate tag add pannu
+    </label>
+    <label for="tag">Affiliate tag / full tracking string (maathikalam)</label>
+    <input id="tag" placeholder="inf_xxxx  (illa full: &affid=inf_xxxx&marketplace=...)">
+
+    <details style="margin-top:12px">
+      <summary>TinyURL token (optional – token iruntha tinyurl.com, illana is.gd link varum)</summary>
+      <label for="token">API token from tinyurl.com/app/settings/api</label>
+      <input id="token" placeholder="Paste token (saved in this browser only)">
+    </details>
+
+    <div class="row">
+      <button id="go">Generate post</button>
+      <button class="sec" id="clear">Clear</button>
+    </div>
+    <div id="status"></div>
+  </div>
+
+  <div class="card">
+    <label for="longOut">Shorten aagura munnadi irukkura link (tag add aana pin)</label>
+    <textarea id="longOut" rows="3" readonly></textarea>
+
+    <label for="out">Final post</label>
+    <textarea id="out" readonly></textarea>
+    <div class="row">
+      <button id="copy">Copy</button>
+      <button class="sec" id="add">Add to list</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <label for="list">Collected posts (for daily batch)</label>
+    <textarea id="list" rows="8"></textarea>
+    <div class="row">
+      <button id="copyAll">Copy all</button>
+      <button class="sec" id="clearAll">Clear list</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+try { $('token').value = localStorage.getItem('tiny_token') || ''; } catch(e){}
+try{ $('tag').value = localStorage.getItem('aff_tag') || ''; $('useTag').checked = localStorage.getItem('aff_on') === '1'; }catch(e){}
+function saveAff(){ try{ localStorage.setItem('aff_tag',$('tag').value.trim()); localStorage.setItem('aff_on',$('useTag').checked?'1':'0'); }catch(e){} }
+['tag','useTag'].forEach(i=>$(i).addEventListener('change',saveAff));
+$('token').addEventListener('change', () => { try{ localStorage.setItem('tiny_token', $('token').value.trim()); }catch(e){} });
+
+$('share').addEventListener('input', () => {
+  const t = $('share').value;
+  const m = t.match(/https?:\/\/\S+/);
+  if (!m) return;
+  const link = m[0].replace(/[)\]>.,]+$/,'');
+  let title = t.replace(link,'').replace(/\s+/g,' ').trim();
+  title = title.replace(/^take a look at this\s+/i,'').replace(/\s+on\s+(flipkart|shopsy)\s*:?$/i,'').trim();
+  $('link').value = link;
+  $('title').value = title;
+  setStatus('Title + link pirichachu ✔ – price mattum podunga');
+  $('price').focus();
+});
+
+function setStatus(t){ $('status').textContent = t; }
+
+function jsonp(src){
+  return new Promise((res,rej)=>{
+    const cb='cb'+Date.now()+Math.floor(Math.random()*1000);
+    const sc=document.createElement('script');
+    const t=setTimeout(()=>{cleanup();rej(new Error('timeout'));},10000);
+    function cleanup(){clearTimeout(t);delete window[cb];sc.remove();}
+    window[cb]=d=>{cleanup();res(d);};
+    sc.onerror=()=>{cleanup();rej(new Error('network'));};
+    sc.src=src+'&callback='+cb;
+    document.head.appendChild(sc);
+  });
+}
+
+async function shorten(url){
+  const token = $('token').value.trim();
+  if (token){
+    try{
+      const r = await fetch('https://api.tinyurl.com/create', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+        body: JSON.stringify({url})
+      });
+      const j = await r.json();
+      if (j && j.data && j.data.tiny_url) return j.data.tiny_url;
+    }catch(e){ /* browser blocked TinyURL – fall back to is.gd */ }
+  }
+  // is.gd fallback (works in browser)
+  const d = await jsonp('https://is.gd/create.php?format=json&url=' + encodeURIComponent(url));
+  if (d && d.shorturl) return d.shorturl;
+  throw new Error((d && d.errormessage) || 'is.gd error');
+}
+
+$('go').onclick = async () => {
+  const title = $('title').value.trim().replace(/\s+/g,' ');
+  const link = $('link').value.trim();
+  const price = $('price').value.replace(/[^\d.,]/g,'').trim();
+  if (!title || !link || !price){ setStatus('Text, link, price moonum venum.'); return; }
+  setStatus('Shortening link…');
+  $('go').disabled = true;
+  try{
+    let finalLink = link;
+    if ($('useTag').checked){
+      const tag = $('tag').value.trim(), pn = 'affid';
+      if (!tag){ setStatus('Tag box la tag podunga, illana tick eduthudunga.'); $('go').disabled=false; return; }
+      try{
+        const u = new URL(link);
+        if (tag.includes('=')){
+          // full tracking string pasted: keep only pid, drop all other old params, add the given string
+          const pid = u.searchParams.get('pid');
+          u.search = '';
+          if (pid) u.searchParams.set('pid', pid);
+          new URLSearchParams(tag.replace(/^[?&\s]+/,'')).forEach((v,k)=>u.searchParams.set(k,v));
+        } else {
+          u.searchParams.set(pn, tag);
+        }
+        finalLink = u.toString();
+      }
+      catch(e){ finalLink = link + (link.includes('?')?'&':'?') + pn + '=' + encodeURIComponent(tag); }
+    }
+    $('longOut').value = finalLink;
+    const short = await shorten(finalLink);
+    const post = `⭐️${title}\n\n🔗${short}\n\n✅Offers: ₹${price}`;
+    $('out').value = post;
+    $('list').value += ($('list').value ? '\n\n' : '') + post;
+    $('share').value=''; $('title').value=''; $('link').value=''; $('price').value='';
+    setStatus('Done ✔ – list la add aachu');
+  }catch(e){
+    setStatus('Shorten aagala (' + e.message + '). TinyURL token podunga, illana full link use aagum.');
+    $('out').value = `⭐️${title}\n\n🔗${link}\n\n✅Offers: ₹${price}`;
+  }
+  $('go').disabled = false;
+};
+
+async function copyText(t, msg){
+  if(!t) return;
+  try{ await navigator.clipboard.writeText(t); }
+  catch(e){ const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+  setStatus(msg);
+}
+$('copy').onclick = () => copyText($('out').value, 'Copied ✔');
+$('copyAll').onclick = () => copyText($('list').value, 'All copied ✔');
+$('add').onclick = () => {
+  const v = $('out').value; if(!v) return;
+  $('list').value += ($('list').value ? '\n\n' : '') + v;
+  $('share').value=''; $('title').value=''; $('link').value=''; $('price').value=''; $('out').value='';
+  setStatus('List la add aachu ✔');
+};
+$('clear').onclick = () => { $('share').value=''; $('title').value=''; $('link').value=''; $('price').value=''; $('out').value=''; $('longOut').value=''; setStatus(''); };
+$('clearAll').onclick = () => { $('list').value=''; };
+
+// ---- Share target: Shopsy/Flipkart share -> auto fill ----
+(function(){
+  try{
+    const q = new URLSearchParams(location.search);
+    const parts = [];
+    ['title','text','url'].forEach(k=>{
+      const v=(q.get(k)||'').trim();
+      if(v && !parts.some(x=>x.includes(v) || v.includes(x))) parts.push(v);
+    });
+    if(parts.length){
+      $('share').value = parts.join('\n');
+      $('share').dispatchEvent(new Event('input'));
+      history.replaceState(null,'',location.pathname);
+    }
+  }catch(e){}
+})();
+if('serviceWorker' in navigator){ window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{})); }
+</script>
+</body>
+</html>
